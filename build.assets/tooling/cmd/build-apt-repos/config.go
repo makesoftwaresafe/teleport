@@ -19,20 +19,20 @@ package main
 import (
 	"flag"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/mod/semver"
 )
 
 const StableChannelFlagValue string = "stable"
 
 type Config struct {
 	artifactPath    string
+	artifactVersion string
 	bucketName      string
 	localBucketPath string
-	majorVersion    string
 	releaseChannel  string
 	aptlyPath       string
 	logLevel        uint
@@ -48,10 +48,10 @@ func ParseFlags() (*Config, error) {
 
 	config := &Config{}
 	flag.StringVar(&config.artifactPath, "artifact-path", "/artifacts", "Path to the filesystem tree containing the *.deb files to add to the APT repos")
+	flag.StringVar(&config.artifactVersion, "artifact-version", "", "The version of the artifacts that will be added to the APT repos")
+	flag.StringVar(&config.releaseChannel, "release-channel", "", "The release channel of the APT repos that the artifacts should be added to")
 	flag.StringVar(&config.bucketName, "bucket", "", "The name of the S3 bucket where the repo should be synced to/from")
 	flag.StringVar(&config.localBucketPath, "local-bucket-path", "/bucket", "The local path where the bucket should be synced to")
-	flag.StringVar(&config.majorVersion, "artifact-major-version", "", "The major version of the artifacts that will be added to the APT repos")
-	flag.StringVar(&config.releaseChannel, "artifact-release-channel", "", "The release channel of the APT repos that the artifacts should be added to")
 	flag.StringVar(&config.aptlyPath, "aptly-root-dir", homeDir, "The Aptly \"rootDir\" (see https://www.aptly.info/doc/configuration/ for details)")
 	flag.UintVar(&config.logLevel, "log-level", uint(logrus.InfoLevel), "Log level from 0 to 6, 6 being the most verbose")
 	flag.BoolVar(&config.logJSON, "log-json", false, "True if the log entries should use JSON format, false for text logging")
@@ -74,8 +74,8 @@ func Check(config *Config) error {
 	if err := validateLocalBucketPath(config.localBucketPath); err != nil {
 		return trace.Wrap(err, "failed to validate the local bucket path flag")
 	}
-	if err := validateMajorVersion(config.majorVersion); err != nil {
-		return trace.Wrap(err, "failed to validate the major version flag")
+	if err := validateArtifactVersion(config.artifactVersion); err != nil {
+		return trace.Wrap(err, "failed to validate the artifact version flag")
 	}
 	if err := validateReleaseChannel(config.releaseChannel); err != nil {
 		return trace.Wrap(err, "failed to validate the release channel flag")
@@ -121,20 +121,13 @@ func validateLocalBucketPath(value string) error {
 	return nil
 }
 
-func validateMajorVersion(value string) error {
+func validateArtifactVersion(value string) error {
 	if value == "" {
-		return trace.BadParameter("the artifact-major-version flag should not be empty")
+		return trace.BadParameter("the artifact-version flag should not be empty")
 	}
 
-	// Can somebody validate that all major versions (even for dev tags/etc.) should follow this pattern?
-	regex := `^v\d+$`
-	matched, err := regexp.MatchString(regex, value)
-	if err != nil {
-		return trace.Wrap(err, "failed to validate the artifact major version flag via regex")
-	}
-
-	if !matched {
-		return trace.BadParameter("the artifact major version flag does not match %s", regex)
+	if !semver.IsValid(value) {
+		return trace.BadParameter("the artifact-version flag does not contain a valid semver version string")
 	}
 
 	return nil
@@ -142,7 +135,7 @@ func validateMajorVersion(value string) error {
 
 func validateReleaseChannel(value string) error {
 	if value == "" {
-		return trace.BadParameter("the artifact-release-channel flag should not be empty")
+		return trace.BadParameter("the release-channel flag should not be empty")
 	}
 
 	// Not sure what other channels we'd want to support, but they should be listed here

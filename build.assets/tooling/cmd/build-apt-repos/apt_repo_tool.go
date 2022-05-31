@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/mod/semver"
 )
 
 type AptRepoTool struct {
@@ -157,7 +158,8 @@ func (art *AptRepoTool) recreateExistingRepos(localPublishedPath string) ([]*Rep
 func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
 	logrus.Infoln("Creating or getting Aptly repos for artifact requirements...")
 
-	artifactRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs, art.config.releaseChannel, art.config.majorVersion)
+	artifactRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs,
+		art.config.releaseChannel, semver.Major(art.config.artifactVersion))
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create or get repos from artifact requirements")
 	}
@@ -187,7 +189,7 @@ func (art *AptRepoTool) importNewDebs(repos []*Repo) error {
 			for _, repo := range repos {
 				// Other checks could be added here to ensure that a given deb gets added to the correct repo
 				// such as name or parent directory, facilitating os-specific artifacts
-				if repo.majorVersion != art.config.majorVersion || repo.releaseChannel != art.config.releaseChannel {
+				if repo.majorVersion != semver.Major(art.config.artifactVersion) || repo.releaseChannel != art.config.releaseChannel {
 					continue
 				}
 

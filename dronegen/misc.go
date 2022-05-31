@@ -35,34 +35,34 @@ func promoteBuildPipeline() pipeline {
 func artifactMigrationPipeline() pipeline {
 	migrationVersions := []string{
 		// These versions were migrated as a part of the new `promoteAptPipeline`
-		// "6.2.31",
-		// "7.3.17",
-		// "7.3.18",
-		// "7.3.19",
-		// "7.3.20",
-		// "8.3.3",
-		// "8.3.4",
-		// "8.3.5",
-		// "8.3.6",
-		// "8.3.7",
-		// "8.3.8",
-		// "8.3.9",
-		// "8.3.10",
-		// "8.3.11",
-		// "9.0.0",
-		// "9.0.1",
-		// "9.0.2",
-		// "9.0.3",
-		// "9.0.4",
-		// "9.1.0",
-		// "9.1.1",
-		// "9.1.2",
-		// "9.1.3",
-		// "9.2.0",
-		// "9.2.1",
-		// "9.2.2",
-		// "9.2.3",
-		// "9.2.4",
+		// "v6.2.31",
+		// "v7.3.17",
+		// "v7.3.18",
+		// "v7.3.19",
+		// "v7.3.20",
+		// "v8.3.3",
+		// "v8.3.4",
+		// "v8.3.5",
+		// "v8.3.6",
+		// "v8.3.7",
+		// "v8.3.8",
+		// "v8.3.9",
+		// "v8.3.10",
+		// "v8.3.11",
+		// "v9.0.0",
+		// "v9.0.1",
+		// "v9.0.2",
+		// "v9.0.3",
+		// "v9.0.4",
+		// "v9.1.0",
+		// "v9.1.1",
+		// "v9.1.2",
+		// "v9.1.3",
+		// "v9.2.0",
+		// "v9.2.1",
+		// "v9.2.2",
+		// "v9.2.3",
+		// "v9.2.4",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
@@ -172,13 +172,26 @@ func buildBaseAptPipeline(pipelineName, aptVolumeName string) pipeline {
 }
 
 func getDroneTagVersionSteps(aptVolumeName string) []step {
-	return getVersionSteps("${DRONE_TAG##v}", aptVolumeName)
+	return getVersionSteps("${DRONE_TAG}", aptVolumeName)
 }
 
-// Version should not start with a 'v', i.e. 1.2.3 or 9.0.1
+// Version should start with a 'v', i.e. v1.2.3 or v9.0.1, or should be an environment var
+// i.e. ${DRONE_TAG}
 func getVersionSteps(version, aptVolumeName string) []step {
 	artifactPath := "/go/artifacts"
 	pvcMountPoint := "/mnt"
+
+	var bucketFolder string
+	switch version[0:1] {
+	// If environment var
+	case "$":
+		// Remove the 'v' at runtime as the value isn't known at compile time
+		bucketFolder = fmt.Sprintf("${%s##v}", version)
+	// If static string
+	case "v":
+		// Remove the 'v' at compile time as the value is known then
+		bucketFolder = version[1:]
+	}
 
 	return []step{
 		{
@@ -207,7 +220,7 @@ func getVersionSteps(version, aptVolumeName string) []step {
 						"--delete",
 						"--exclude \"*\"",
 						"--include \"*.deb*\"",
-						fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", version),
+						fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", bucketFolder),
 						"\"$ARTIFACT_PATH\"",
 					},
 					" ",
@@ -261,7 +274,7 @@ func getVersionSteps(version, aptVolumeName string) []step {
 				"apt update",
 				"apt install aptly tree -y",
 				"cd /go/src/github.com/gravitational/teleport/build.assets/tooling",
-				fmt.Sprintf("export VERSION=\"$(echo v%s | cut -d. -f1)\"", version),
+				fmt.Sprintf("export VERSION=%q", version),
 				"export RELEASE_CHANNEL=\"stable\"", // The tool supports several release channels but I'm not sure where this should be configured
 				// "rm -rf \"$APTLY_ROOT_DIR\"",		// Uncomment this to completely dump the Aptly database and force a rebuild
 				strings.Join(
@@ -270,8 +283,8 @@ func getVersionSteps(version, aptVolumeName string) []step {
 						"go run ./cmd/build-apt-repos",
 						"-bucket \"$APT_S3_BUCKET\"",
 						"-local-bucket-path \"$BUCKET_CACHE_PATH\"",
-						"-artifact-major-version \"$VERSION\"",
-						"-artifact-release-channel \"$RELEASE_CHANNEL\"",
+						"-artifact-version \"$VERSION\"",
+						"-release-channel \"$RELEASE_CHANNEL\"",
 						"-aptly-root-dir \"$APTLY_ROOT_DIR\"",
 						"-artifact-path \"$ARTIFACT_PATH\"",
 						"-log-level 4", // Set this to 5 for debug logging

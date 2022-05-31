@@ -5072,11 +5072,11 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Download artifacts for "${DRONE_TAG##v}"
+- name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${${DRONE_TAG}##v}/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -5086,7 +5086,7 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
-- name: Publish debs to APT repos for "${DRONE_TAG##v}"
+- name: Publish debs to APT repos for "${DRONE_TAG}"
   image: golang:1.18.1-bullseye
   commands:
   - mkdir -pv -m0700 $GNUPGHOME
@@ -5095,11 +5095,11 @@ steps:
   - apt update
   - apt install aptly tree -y
   - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
-  - export VERSION="$(echo v${DRONE_TAG##v} | cut -d. -f1)"
+  - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
-    -artifact-major-version "$VERSION" -artifact-release-channel "$RELEASE_CHANNEL"
-    -aptly-root-dir "$APTLY_ROOT_DIR" -artifact-path "$ARTIFACT_PATH" -log-level 4
+    -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL" -aptly-root-dir
+    "$APTLY_ROOT_DIR" -artifact-path "$ARTIFACT_PATH" -log-level 4
   - rm -rf "$BUCKET_CACHE_PATH"
   - df -h "$APTLY_ROOT_DIR"
   environment:
@@ -5517,6 +5517,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4a81e7485b1a5d2a6242b7938c589dd5527a826aedb0614a657d9397d99485d2
+hmac: c139ac90401aed20f78e3dea584308e58c590d0153a402f914ec8c9b99c443a7
 
 ...
