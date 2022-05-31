@@ -76,7 +76,7 @@ func (art *AptRepoTool) Run() error {
 	}
 
 	// Note: this logic will only push the artifact into the `art.supportedOSs` repos.
-	// This behavior is intended to allow depricating old OS versions in the future
+	// This behavior is intended to allow deprecating old OS versions in the future
 	// without removing the associated repos entirely.
 	artifactRepos, err := art.getArtifactRepos()
 	if err != nil {
