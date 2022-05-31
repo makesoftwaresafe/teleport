@@ -26,6 +26,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const StableChannelFlagValue string = "stable"
+
 type Config struct {
 	artifactPath    string
 	bucketName      string
@@ -144,7 +146,7 @@ func validateReleaseChannel(value string) error {
 	}
 
 	// Not sure what other channels we'd want to support, but they should be listed here
-	validReleaseChannels := []string{"stable"}
+	validReleaseChannels := []string{StableChannelFlagValue}
 
 	for _, validReleaseChannel := range validReleaseChannels {
 		if value == validReleaseChannel {
