@@ -870,12 +870,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		ident, err := node.GetIdentity(types.RoleNode)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		return ident.ID.HostID(), nil
+		return node.Config.HostUUID, nil
 	}
 
 	// add two nodes with the same hostname.
@@ -4538,7 +4533,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.KeyRing)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4634,7 +4629,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.KeyRing)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4731,7 +4726,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start an agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.KeyRing)
 			require.NoError(t, err)
 			t.Cleanup(func() { helpers.CloseAgent(teleAgent, socketDirPath) })
 
@@ -5280,17 +5275,16 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		_, err := svc.GetIdentity(types.RoleNode)
-		return err == nil
-	}, 5*time.Second, 500*time.Millisecond)
 	checkSSHPrincipals := func(svc *service.TeleportProcess) {
-		id, err := svc.GetIdentity(types.RoleNode)
-		require.NoError(t, err)
-		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
-		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+helpers.Site)
-		require.Contains(t, id.Cert.ValidPrincipals, helpers.HostID)
-		require.Contains(t, id.Cert.ValidPrincipals, helpers.HostID+"."+helpers.Site)
+		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
+		require.NotNil(t, conn, err)
+
+		require.Subset(t, conn.ServerGetValidPrincipals(), []string{
+			svc.Config.Hostname,
+			svc.Config.Hostname + "." + helpers.Site,
+			helpers.HostID,
+			helpers.HostID + "." + helpers.Site,
+		})
 	}
 	checkSSHPrincipals(svc)
 
@@ -5448,17 +5442,16 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	svc, err := waitForProcessStart(serviceC)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		_, err := svc.GetIdentity(types.RoleNode)
-		return err == nil
-	}, 5*time.Second, 500*time.Millisecond)
 	checkSSHPrincipals := func(svc *service.TeleportProcess) {
-		id, err := svc.GetIdentity(types.RoleNode)
-		require.NoError(t, err)
-		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname)
-		require.Contains(t, id.Cert.ValidPrincipals, svc.Config.Hostname+"."+helpers.Site)
-		require.Contains(t, id.Cert.ValidPrincipals, helpers.HostID)
-		require.Contains(t, id.Cert.ValidPrincipals, helpers.HostID+"."+helpers.Site)
+		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
+		require.NotNil(t, conn, err)
+
+		require.Subset(t, conn.ServerGetValidPrincipals(), []string{
+			svc.Config.Hostname,
+			svc.Config.Hostname + "." + helpers.Site,
+			helpers.HostID,
+			helpers.HostID + "." + helpers.Site,
+		})
 	}
 	checkSSHPrincipals(svc)
 
